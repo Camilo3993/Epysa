@@ -6,6 +6,15 @@ import pandas as pd
 import ibm_db_dbi as dbi
 import os
 from prompt.prompt import Prompt
+from ibm_watson_machine_learning.foundation_models.utils.enums import ModelTypes
+from ibm_watson_machine_learning.metanames import GenTextParamsMetaNames as GenParams
+from ibm_watson_machine_learning.foundation_models.utils.enums import DecodingMethods
+from ibm_watson_machine_learning.foundation_models import Model
+from ibm_watson_machine_learning.foundation_models.extensions.langchain import WatsonxLLM
+from langchain.prompts import PromptTemplate
+from langchain.chains import LLMChain
+
+
 
 
 app = Flask(__name__)
@@ -22,12 +31,25 @@ api_key = os.getenv("IBM_CLOUD_API_KEY")
 # Selección url
 url_cloud = os.getenv("IBM_CLOUD_URL")
 
+mi_apikey = os.getenv("mi_apikey")
 
+url = os.getenv("url")
+
+model_id_3 = ModelTypes.MPT_7B_INSTRUCT2
+
+   
 
 # Autenticación        
 access_token = IAMTokenManager(
   apikey = api_key,
   url = url_cloud).get_token()
+
+import getpass
+
+credentials = {
+    "url": "https://us-south.ml.cloud.ibm.com",
+    "apikey": "SJKz5Uoz1AlZhL6IKRSkPCRHVt5yvVICvH3GWNTfzoG7"
+}
 
 # Parámetros
 parameters = {
@@ -35,6 +57,23 @@ parameters = {
     "max_new_tokens": 700,
     "repetition_penalty": 1
 }
+
+parametros = {
+    GenParams.DECODING_METHOD: DecodingMethods.SAMPLE,
+    GenParams.MAX_NEW_TOKENS: 100,
+    GenParams.MIN_NEW_TOKENS: 1,
+    GenParams.TEMPERATURE: 0.5,
+    GenParams.TOP_K: 50,
+    GenParams.TOP_P: 1
+}
+
+MPT_7B_INSTRUCT2 = Model(
+    model_id=model_id_3, 
+    params=parametros, 
+    credentials=credentials,
+    project_id=project_id)
+
+MPT_7B_INSTRUCT2_llm = WatsonxLLM(model=MPT_7B_INSTRUCT2)
 
 
 
@@ -83,24 +122,33 @@ def extraccion_entidades(json_data):
     # Agrega el cierre de la cadena
     texto_combinado += "\"\"\""
     
-
-
-
-    def extracccion(texto, ejemplos):
-        promptTuning = "Actúa como un webmaster que debe extraer información estructurada de textos en español. Lee el siguiente texto y extrae y categoriza cada entidad. Utiliza los ejemplos proporcionados solo como guía para seguir la estructura de extracción, pero no incluyas la información de los ejemplos en la respuesta.La respuesta solo debe devolver la extracion de la entidades y no responder las preguntas. Evita devolver la entrada, solo devuelve una unica respuesta y no entregues información adicional."
-        prompt_text = f"instrucciones que debes seguir:{promptTuning}, \n ejemplos que debes utilizar para guiar tu extraccion : {ejemplos} ,\n texto para la extraccion :{texto}, \n Respuesta: "
     
-        # Crear un objeto de la clase Prompt (asegúrate de tener access_token y project_id definidos previamente)
-        prompt = Prompt(access_token, project_id)
-    
-        # Llamar al método generate con la cadena de texto en lugar del objeto Prompt
-        resultado = prompt.generate(prompt_text, model_id, parameters)
-        return resultado
+    extraccion_template = """
+    Actúa como un webmaster que debe extraer información estructurada de textos en español. Lee el siguiente texto y extrae del texto las entidades , fechas , categorias , condicion y valor que sean mencionados y estan presente en el texto.
+    Utiliza los ejemplos proporcionados solo como guía para seguir la estructura de extracción,pero no incluyas la información de los ejemplos en la respuesta , si recibes la misma pregunta de los ejemplos debes usar la respuesta del ejemplo.
+    solo devuelve una unica respuesta y no entregues información adicional.
+    Extrae Entidad: Representa un objeto o sujeto principal en la pregunta. Puede ser un cliente, producto, vendedor, etc.
+    Extrae la Fecha si esta presente: Indica un período de tiempo relevante en la pregunta, como un año (2023), un mes (junio), o una referencia temporal (el año pasado).
+    Extrae Categorías: Describe una característica específica de las entidades en cuestión, como "Herramientas" y "Suspensión" en el ejemplo 1.
+    Extrae Condición: Se refiere a una restricción o requisito específico asociado a la pregunta. Por ejemplo, "más comprados," "trabajado menos," "más experiencia," o "por cada vendedor" son condiciones que limitan o califican la respuesta deseada.
+    Extrae Valor: Representa la cantidad o medida que se busca en la pregunta. Puede ser un número , una descripción cualitativa , o un estado .
+    Ejemplos:{ejemplos}
+    texto para extraccion : {texto}
+    Respuesta:
+    """
 
-    entidades = extracccion(pregunta_formateada, texto_combinado)
+    prompt = PromptTemplate(
+        input_variables=["ejemplos","texto"],
+        template=extraccion_template,
+    )
+
+    chain = LLMChain(llm=MPT_7B_INSTRUCT2_llm, prompt=prompt)
+
+    extraccion_2=chain.run({'ejemplos': texto_combinado, 'texto': pregunta_formateada})
+
     
     
-    response_data = {'Entidades': entidades}
+    response_data = {'Entidades ':extraccion_2 }
 
 
 

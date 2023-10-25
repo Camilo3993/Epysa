@@ -2,6 +2,7 @@ from dotenv import load_dotenv
 import os
 import requests
 
+
 load_dotenv()
 
 watson_machine_learning_url = os.getenv("WML_URL")
