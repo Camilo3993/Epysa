@@ -2,7 +2,6 @@ from flask import Flask, request, jsonify
 import requests
 from ibm_cloud_sdk_core import IAMTokenManager
 from ibm_cloud_sdk_core.authenticators import IAMAuthenticator, BearerTokenAuthenticator
-import pandas as pd
 import ibm_db_dbi as dbi
 import os
 from prompt.prompt import Prompt
@@ -100,16 +99,14 @@ def extraccion_entidades(json_data):
         # Convertir a minúsculas
         pregunta_formateada = pregunta_formateada.lower()
     
-        # Eliminar caracteres especiales y signos de puntuación
-        pregunta_formateada = re.sub(r'[^\w\s]', '', pregunta_formateada)
     
         return pregunta_formateada
 
     pregunta_formateada = formatear_pregunta(pregunta_usuario)
-    #print(f"Pregunta formateada: {pregunta_formateada}")
+    print(f"Pregunta formateada: {pregunta_formateada}")
 
     # Inicializa una cadena vacía para almacenar el texto combinado
-    texto_combinado = "ejemplos = \"\"\"\n"
+    texto_combinado = ""
 
     # Recorre la lista de ejemplos y agrega cada ejemplo al texto combinado
     for i, ejemplo in enumerate(ejemplos, start=1):
@@ -117,7 +114,7 @@ def extraccion_entidades(json_data):
         respuesta = ejemplo["respuesta"]
         
         # Agrega el número de ejemplo, la pregunta y la respuesta al texto
-        texto_combinado += f"ejemplo {i}:\n    Pregunta usuario : {pregunta}\n    respuesta : {respuesta}\n"
+        texto_combinado += f"\nejemplo {i}:\n    Pregunta usuario : {pregunta}\n    respuesta : {respuesta}\n"
 
     # Agrega el cierre de la cadena
     texto_combinado += "\"\"\""
@@ -128,10 +125,10 @@ def extraccion_entidades(json_data):
     Utiliza los ejemplos proporcionados solo como guía para seguir la estructura de extracción,pero no incluyas la información de los ejemplos en la respuesta , si recibes la misma pregunta de los ejemplos debes usar la respuesta del ejemplo.
     solo devuelve una unica respuesta y no entregues información adicional.
     Extrae Entidad: Representa un objeto o sujeto principal en la pregunta. Puede ser un cliente, producto, vendedor, etc.
-    Extrae la Fecha si esta presente: Indica un período de tiempo relevante en la pregunta, como un año (2023), un mes (junio), o una referencia temporal (el año pasado).
-    Extrae Categorías: Describe una característica específica de las entidades en cuestión, como "Herramientas" y "Suspensión" en el ejemplo 1.
-    Extrae Condición: Se refiere a una restricción o requisito específico asociado a la pregunta. Por ejemplo, "más comprados," "trabajado menos," "más experiencia," o "por cada vendedor" son condiciones que limitan o califican la respuesta deseada.
-    Extrae Valor: Representa la cantidad o medida que se busca en la pregunta. Puede ser un número , una descripción cualitativa , o un estado .
+    Extrae la Fecha si esta textualmente en el texto: Indica un período de tiempo relevante en la pregunta, como un año (2023), un mes (junio), o una referencia temporal (el año pasado).
+    Extrae Categorías: Describe una característica específica de las entidades en cuestión (como "Herramientas" y "Suspensión") .
+    Extrae Condición: Se refiere a una restricción o requisito específico asociado a la pregunta. (Por ejemplo, "más comprados," "trabajado menos," "más experiencia," o "por cada vendedor") son condiciones que limitan o califican la respuesta deseada.
+    Extrae Valor: Representa la cantidad o medida que se busca en la pregunta. Puede ser un número (5), una descripción cualitativa (como "total de ventas" ) , o un estado (como "verde").
     Ejemplos:{ejemplos}
     texto para extraccion : {texto}
     Respuesta:
@@ -143,6 +140,8 @@ def extraccion_entidades(json_data):
     )
 
     chain = LLMChain(llm=MPT_7B_INSTRUCT2_llm, prompt=prompt)
+    p=prompt.format(ejemplos=texto_combinado, texto=pregunta_formateada)
+    print(p)
 
     extraccion_2=chain.run({'ejemplos': texto_combinado, 'texto': pregunta_formateada})
 
