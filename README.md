@@ -101,7 +101,7 @@ Camino 2.
 
 ### Ruta 5: Categorizar y crear una descripcion de las columnas de la base de datos
 
-**Descripción:** En esta ruta, se define la categoria y se crea un descripcion de la columna .
+**Descripción:** En esta ruta, se define la categoria a la cual pertenece la informacion de la columna mas los datos de dicha columna y se crea un descripcion de la columna .
 
 La quinta ruta es la "Categorizar y descripcion" Para utilizar esta función, se debe entregar el nombre de la columna la cual es obligatoria mas los datos o registors o filas de la columna para que el modelo pueda crear una descripcion de dicha columna.
 
