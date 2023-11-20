@@ -6,6 +6,13 @@ import pandas as pd
 import ibm_db_dbi as dbi
 import os
 from prompt.prompt import Prompt
+from ibm_watson_machine_learning.foundation_models.utils.enums import ModelTypes
+from ibm_watson_machine_learning.metanames import GenTextParamsMetaNames as GenParams
+from ibm_watson_machine_learning.foundation_models.utils.enums import DecodingMethods
+from ibm_watson_machine_learning.foundation_models import Model
+from ibm_watson_machine_learning.foundation_models.extensions.langchain import WatsonxLLM
+from langchain.prompts import PromptTemplate
+from langchain.chains import LLMChain
 
 
 app = Flask(__name__)
@@ -32,12 +39,36 @@ access_token = IAMTokenManager(
     apikey = api_key,
     url = url_cloud).get_token()
 
+import getpass
+
+credentials = {
+    "url": "https://us-south.ml.cloud.ibm.com",
+    "apikey": "SJKz5Uoz1AlZhL6IKRSkPCRHVt5yvVICvH3GWNTfzoG7"
+}
+
 # Parámetros
 parameters = {
     "decoding_method": "greedy",
     "max_new_tokens": 700,
     "repetition_penalty": 1
 }
+
+parametros = {
+    GenParams.DECODING_METHOD: DecodingMethods.SAMPLE,
+    GenParams.MAX_NEW_TOKENS: 100,
+    GenParams.MIN_NEW_TOKENS: 1,
+    GenParams.TEMPERATURE: 0.5,
+    GenParams.TOP_K: 50,
+    GenParams.TOP_P: 1
+}
+
+MPT_7B_INSTRUCT2 = Model(
+    model_id=model_id, 
+    params=parametros, 
+    credentials=credentials,
+    project_id=project_id)
+
+MPT_7B_INSTRUCT2_llm = WatsonxLLM(model=MPT_7B_INSTRUCT2)
 
 def sentencia_sql(json_data):
 
@@ -110,23 +141,30 @@ def sentencia_sql(json_data):
     # Imprime el texto combinado
     #print(texto_combinado)
 
-    
-    
-
-    def queryFactory2(texto_descriptivo, pregunta_usuario , ejemplos):
-        promptTuning = "traduce texto a sql , debes analizar la pregunta del usuario entendiendo que te esta solicitando y cual es el proposito de la pregunta , para construir la sentencia sql debes tomar en consideracion la descripción de la unica tabla y sus campos y los ejemplos que se te entregan para guiarte, solo devolver la sentencia sql , no repetir informacion y no inventar informacion ademas crea alias para darle mas entendimiento a la sentencia sql"
-        prompt_text = f"instrucciones que debes seguir:{promptTuning},\n ejemplos que debes utilizar para guiarte : {ejemplos} ,\n descripción de la unica tabla y sus columnas de la base de datos que debes usar para construir la sentencia sql : {texto_descriptivo} ,\n pregunta del usuario que debes responder :{pregunta_usuario} \n  respuesta: "
+    sql_template = """
+    Respira profundamente y enfoquémonos.Tu rol es el de un experto en SQL y tu tarea es traducir texto a sql , debes analizar la pregunta del usuario entendiendo que te esta solicitando y cual es el proposito de la pregunta , 
+    para construir la sentencia sql debes tomar en consideracion la descripción de la unica tabla y sus columnas ademas debes utilizar textualmete el nombre de las columnas porque en la base de datos estan de esa misma forma con los espacios. 
+    solo devolver la sentencia sql , no repetir informacion y no inventar informacion ademas crea alias para darle mas entendimiento a la sentencia sql.
+    Terminos de ciertas palabras que recibiras: SKU es la columna ITEMID , la columna CLI_FLAG_CARTERA tiene dos opciones Obejtivo o Abierta, si te preguntaran por 'los SKU mas vendido para el cliente con ' deberas usar CLI_FLAG_CARTERA=OBJETIVO; cuenado tengas que usar en las clausulas select y where el rut del cliente debes agregarlo con doble comillas asi textualmente como te enseño "RUT_Cliente" .
+    descripción de la unica tabla y sus columnas de la base de datos que debes usar para construir la sentencia sql : {texto}.
+    Debes colocar siempre RUT_Cliente en los where.
+    Utiliza los ejemplos solo de guia para tus respuestas.
+    Ejemplos :{ejemplos}
         
-        # Crear un objeto de la clase Prompt (asegúrate de tener access_token y project_id definidos previamente)
-        prompt = Prompt(access_token, project_id)
-        
-        # Llamar al método generate con la cadena de texto en lugar del objeto Prompt
-        resultado = prompt.generate(prompt_text, model_id, parameters)
-        return resultado
+    pregunta del usuario que debes responder :{pregunta_usuario}
+    respira y enfocate en que la respuesta que necesitamos es solo la sentencia sql que responda la pregunta del usuario, sin detalles adicionales.
+    respuesta: 
+    """
 
-    query = queryFactory2(texto_descriptivo, pregunta_formateada , texto_combinado)
+    prompt = PromptTemplate(
+        input_variables=["texto","pregunta_usuario","ejemplos"],
+        template=sql_template,
+    )
 
-    print(query)
+    chain_2 = LLMChain(llm=MPT_7B_INSTRUCT2_llm, prompt=prompt)
+
+
+    query=chain_2.run({'texto':texto_descriptivo ,'pregunta_usuario':pregunta_usuario,'ejemplos':texto_combinado})
 
     import re
 
@@ -177,18 +215,18 @@ def sentencia_sql(json_data):
 
     # Inicializar una cadena de texto vacía para almacenar la información
     informacion_texto = ""
-    from datetime import datetime
 
     # Recorrer el diccionario y agregar la información en formato de texto lineal
     for key, value in data.items():
+        
         for subkey, subvalue in value.items():
-            if subkey in ["DATE_SELL"]:
-                subvalue = subvalue / 1000.0  # Convertir de milisegundos a segundos (utiliza 1000.0 para asegurarte de obtener un valor decimal)
-                fecha_formateada = datetime.utcfromtimestamp(subvalue).strftime('%d/%m/%Y')
+            if subkey == "DATE_SELL":
+                fecha_formateada = datetime.utcfromtimestamp(subvalue / 1000).strftime('%Y-%m-%d')
                 informacion_texto += f" {subkey} : {fecha_formateada}, "
             else:
                 informacion_texto += f" {subkey} : {subvalue}, "
         informacion_texto = informacion_texto.rstrip(', ') + "\n"
+
 
     # Imprimir o usar la cadena de texto según tus necesidades
     #print(informacion_texto)

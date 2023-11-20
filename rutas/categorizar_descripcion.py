@@ -133,7 +133,7 @@ def categorizar(json_data):
             Datos de la columna: 12347022-4.
         Respuesta:
             El conjunto de datos indica el rut del cliente y sirve para identificar al cliente.
-    respira y enfocate en que la respuesta que necesitamos es solo la descripcion del conjunto de datos, sin detalles adicionales.
+    respira y enfocate en que la respuesta que necesitamos es solo la descripcion del conjunto de datos, sin detalles adicionales y no inventes informacion solo basate en la informacion entregada.
     Conjunto de datos:
     Nombre de la columna: {nombre_columna}. 
     Categoria : {categoria}

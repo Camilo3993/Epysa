@@ -17,7 +17,7 @@ Este repositorio implementa un proceso para traducir preguntas en lenguaje natur
 **Resultado:**
 
 {
-  "clasificación" : "Válida"
+  entidad:total de ventas, fecha: hasta la fecha"
 }
 
 
@@ -35,9 +35,14 @@ La segunda ruta es la "Clasificación de la pregunta." Para utilizar esta funci�
 }
 
 **Resultado:**
-
+*Opcion A
 {
   "clasificación" : "Válida"
+}
+
+*Opcion B
+{
+  "clasificación" : "No Válida"
 }
 
 ### Ruta 3: Creación de la Sentencia SQL
