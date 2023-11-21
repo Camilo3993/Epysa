@@ -46,16 +46,10 @@ credentials = {
     "apikey": "SJKz5Uoz1AlZhL6IKRSkPCRHVt5yvVICvH3GWNTfzoG7"
 }
 
-# Parámetros
-parameters = {
-    "decoding_method": "greedy",
-    "max_new_tokens": 700,
-    "repetition_penalty": 1
-}
 
 parametros = {
     GenParams.DECODING_METHOD: DecodingMethods.SAMPLE,
-    GenParams.MAX_NEW_TOKENS: 100,
+    GenParams.MAX_NEW_TOKENS: 700,
     GenParams.MIN_NEW_TOKENS: 1,
     GenParams.TEMPERATURE: 0.5,
     GenParams.TOP_K: 50,
@@ -138,8 +132,6 @@ def sentencia_sql(json_data):
     # Agrega el cierre de la cadena
     texto_combinado += "\"\"\""
 
-    # Imprime el texto combinado
-    #print(texto_combinado)
 
     sql_template = """
     Respira profundamente y enfoquémonos.Tu rol es el de un experto en SQL y tu tarea es traducir texto a sql , debes analizar la pregunta del usuario entendiendo que te esta solicitando y cual es el proposito de la pregunta , 
@@ -147,12 +139,13 @@ def sentencia_sql(json_data):
     solo devolver la sentencia sql , no repetir informacion y no inventar informacion ademas crea alias para darle mas entendimiento a la sentencia sql.
     Terminos de ciertas palabras que recibiras: SKU es la columna ITEMID , la columna CLI_FLAG_CARTERA tiene dos opciones Obejtivo o Abierta, si te preguntaran por 'los SKU mas vendido para el cliente con ' deberas usar CLI_FLAG_CARTERA=OBJETIVO; cuenado tengas que usar en las clausulas select y where el rut del cliente debes agregarlo con doble comillas asi textualmente como te enseño "RUT_Cliente" .
     descripción de la unica tabla y sus columnas de la base de datos que debes usar para construir la sentencia sql : {texto}.
-    Debes colocar siempre RUT_Cliente en los where.
-    Utiliza los ejemplos solo de guia para tus respuestas.
-    Ejemplos :{ejemplos}
+    Debes identificar cuales columnas serian las mas apropiadas para crear la sentencia sql , despues identificar si es necesario hacer un calculo con alguna de las columnas que seleccionaste y por ultimo agrupar o ordenar segun sea necesario.
+    La columna FECHA_OV_DATE necesita ser transformada con la siguiente funcion DATE(TIMESTAMP_FORMAT(FECHA_OV_DATE, 'DD-MM-YYYY')) para obtener la fecha de esta forma YYYY-MM-DD , usa la funcion para transformar la columna CADA VEZ QUE LA USES y poder trabajar con esa columna.
+    Utiliza los ejemplos solo de guia para tus respuestas y saber como esperamos que construyas la sentencia sql.
+    {ejemplos}
         
     pregunta del usuario que debes responder :{pregunta_usuario}
-    respira y enfocate en que la respuesta que necesitamos es solo la sentencia sql que responda la pregunta del usuario, sin detalles adicionales.
+    respira profunadamente, toma te un tiempo y enfocate en que la respuesta que necesitamos es solo la sentencia sql que responda la pregunta del usuario, sin detalles adicionales.
     respuesta: 
     """
 
@@ -179,7 +172,19 @@ def sentencia_sql(json_data):
 
     sql_formateado = formatear_pregunta(query)
 
+    
+    import re
 
+    def agregar_comillas_sql(sentencia_sql, columnas_a_modificar):
+        for columna in columnas_a_modificar:
+            # Utilizar expresiones regulares para agregar doble comillas a la columna
+            sentencia_sql = re.sub(rf'\b({columna})\b', r'"\1"', sentencia_sql)
+        return sentencia_sql
+
+    columnas_a_modificar = ['Cant_OV', 'Precio_Unitario_Venta' , 'CONTRIBUCIÓN', 'Facturación_Comuna']
+
+    sql_modificado = agregar_comillas_sql(sql_formateado, columnas_a_modificar)
+    print(sql_modificado)
 
     import pandas as pd
     import os, ibm_db, ibm_db_dbi as dbi, pandas as pd
@@ -193,48 +198,64 @@ def sentencia_sql(json_data):
         pwd='Huemul.DB.2023+'
     )
 
-    conn = dbi.connect(DB2DWH_dsn)
-    cursor = conn.cursor()
+    # Establecer la conexión a la base de datos
+    try:
+        conn = dbi.connect(DB2DWH_dsn)
+        cursor = conn.cursor()
 
 
-    #cursor.execute(query1)
-    tabla_sales = pd.read_sql(query, conn )
+        # Realizar la consulta y almacenar los resultados en un DataFrame
+        tabla_sales = pd.read_sql(sql_modificado, conn)
+
+        # Imprimir el DataFrame
+        #print(tabla_sales)
+
+        # Convertir el DataFrame a formato JSON
+        datos = tabla_sales.to_json(orient='index')
+
+        import json
+        from datetime import datetime
+
+        # Parsear el JSON a un diccionario de Python
+        data = json.loads(datos)
+
+        # Inicializar una cadena de texto vacía para almacenar la información
+        informacion_texto = ""
+
+        # Recorrer el diccionario y agregar la información en formato de texto lineal
+        for key, value in data.items():
+            
+            for subkey, subvalue in value.items():
+                if subkey == "DATE_SELL":
+                    fecha_formateada = datetime.utcfromtimestamp(subvalue / 1000).strftime('%Y-%m-%d')
+                    informacion_texto += f" {subkey} : {fecha_formateada}, "
+                else:
+                    informacion_texto += f" {subkey} : {subvalue}, "
+            informacion_texto = informacion_texto.rstrip(', ') + "\n"
 
 
-    conn.commit()
-    cursor.close()
-    conn.close()
-    #print(tabla_sales)
-    datos=tabla_sales.to_json(orient ='index')
+        # Imprimir o usar la cadena de texto según tus necesidades
+        #print(informacion_texto)
+        response_data = {
+                        'sentencia SQL': sql_modificado,
+                        'resultado SQL': informacion_texto,
+                        }
 
-    import json
-    from datetime import datetime
+        return jsonify(response_data)
 
-    # Parsear el JSON a un diccionario de Python
-    data = json.loads(datos)
+    except Exception as e:
+        # Manejar cualquier excepción que pueda ocurrir
+        print(f"Se produjo un error: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
-    # Inicializar una cadena de texto vacía para almacenar la información
-    informacion_texto = ""
-
-    # Recorrer el diccionario y agregar la información en formato de texto lineal
-    for key, value in data.items():
-        
-        for subkey, subvalue in value.items():
-            if subkey == "DATE_SELL":
-                fecha_formateada = datetime.utcfromtimestamp(subvalue / 1000).strftime('%Y-%m-%d')
-                informacion_texto += f" {subkey} : {fecha_formateada}, "
-            else:
-                informacion_texto += f" {subkey} : {subvalue}, "
-        informacion_texto = informacion_texto.rstrip(', ') + "\n"
-
-
-    # Imprimir o usar la cadena de texto según tus necesidades
-    #print(informacion_texto)
-    response_data = {
-                    'sentencia SQL': sql_formateado,
-                    'resultado SQL': informacion_texto,
-                    }
+    finally:
+        # Cerrar el cursor y la conexión, independientemente de si hay una excepción o no
+        if 'cursor' in locals() and cursor is not None:
+            cursor.close()
+        if 'conn' in locals() and conn is not None:
+            conn.close()
 
 
 
-    return response_data
+
+    
