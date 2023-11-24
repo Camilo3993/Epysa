@@ -1,3 +1,25 @@
+# Instrucciones previas para el deploy
+### Loguearse en Container Registry de IBM
+```
+docker login us.icr.io -u iamapikey -p bNSxSNvzhZE8ZSypRaghbhnVWg3JCdi2LOKyVusoeXKh
+```
+
+### Tagear imagen en repo de IBM Container Regsitry
+```
+docker tag app3:latest us.icr.io/huemulnamespace/codeengine-app3-dc:latest
+```
+
+### Subir imagen local a repositorio del Container Registry
+```
+
+docker push us.icr.io/huemulnamespace/codeengine-app3-dc:latest
+```
+
+### Crear aplicación en Code Engine a partir de Container Image.
+- Apuntar a
+```
+private.us.ic
+
 # Traduccion de lenguaje natural a SQL con una respuesta humanizada
 
 Este repositorio implementa un proceso para traducir preguntas en lenguaje natural a consultas SQL y proporcionar respuestas humanizadas. Cada ruta en el proceso recibe datos en formato JSON para llevar a cabo sus funciones específicas.
