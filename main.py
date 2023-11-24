@@ -5,6 +5,7 @@ from rutas.clasificacion import clasificacion_pregunta
 from rutas.sql import sentencia_sql
 from rutas.respuesta_final import respuesta_humanizada
 from rutas.categorizar_descripcion import categorizar
+from rutas.sql_2 import sentencia_sql_2
 
 
 app = Flask(__name__)  
@@ -57,6 +58,19 @@ def sql_sentencia():
       json_data = request.json
 
       response_data = sentencia_sql(json_data)      
+      return  response_data
+    
+    except Exception as e:
+        app.logger.error(f"Un error ha ocurrido: {str(e)}")
+        return f"Un error ha ocurrido: {str(e)}", 500
+
+@app.route('/sql_2', methods=['POST'])
+def sql_2_sentencia():
+    try:       
+
+      json_data = request.json
+
+      response_data = sentencia_sql_2(json_data)      
       return  response_data
     
     except Exception as e:

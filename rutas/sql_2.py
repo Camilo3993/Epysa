@@ -6,13 +6,9 @@ import pandas as pd
 import ibm_db_dbi as dbi
 import os
 from prompt.prompt import Prompt
-from ibm_watson_machine_learning.foundation_models.utils.enums import ModelTypes
-from ibm_watson_machine_learning.metanames import GenTextParamsMetaNames as GenParams
-from ibm_watson_machine_learning.foundation_models.utils.enums import DecodingMethods
-from ibm_watson_machine_learning.foundation_models import Model
-from ibm_watson_machine_learning.foundation_models.extensions.langchain import WatsonxLLM
-from langchain.prompts import PromptTemplate
-from langchain.chains import LLMChain
+import pandas as pd
+import os, ibm_db, ibm_db_dbi as dbi, pandas as pd
+
 
 
 app = Flask(__name__)
@@ -39,32 +35,14 @@ access_token = IAMTokenManager(
     apikey = api_key,
     url = url_cloud).get_token()
 
-import getpass
-
-credentials = {
-    "url": "https://us-south.ml.cloud.ibm.com",
-    "apikey": "SJKz5Uoz1AlZhL6IKRSkPCRHVt5yvVICvH3GWNTfzoG7"
+# Parámetros
+parameters = {
+    "decoding_method": "greedy",
+    "max_new_tokens": 700,
+    "repetition_penalty": 1
 }
 
-
-parametros = {
-    GenParams.DECODING_METHOD: DecodingMethods.SAMPLE,
-    GenParams.MAX_NEW_TOKENS: 700,
-    GenParams.MIN_NEW_TOKENS: 1,
-    GenParams.TEMPERATURE: 0.5,
-    GenParams.TOP_K: 50,
-    GenParams.TOP_P: 1
-}
-
-MPT_7B_INSTRUCT2 = Model(
-    model_id=model_id, 
-    params=parametros, 
-    credentials=credentials,
-    project_id=project_id)
-
-MPT_7B_INSTRUCT2_llm = WatsonxLLM(model=MPT_7B_INSTRUCT2)
-
-def sentencia_sql(json_data):
+def sentencia_sql_2(json_data):
 
     json_data = request.json
     
@@ -132,33 +110,29 @@ def sentencia_sql(json_data):
     # Agrega el cierre de la cadena
     texto_combinado += "\"\"\""
 
+    # Imprime el texto combinado
+    #print(texto_combinado)
 
-    sql_template = """
-    Respira profundamente y enfoquémonos.Tu rol es el de un experto en SQL y tu tarea es traducir texto a sql , debes analizar la pregunta del usuario entendiendo que te esta solicitando y cual es el proposito de la pregunta , 
-    para construir la sentencia sql debes tomar en consideracion la descripción de la unica tabla y sus columnas ademas debes utilizar textualmete el nombre de las columnas porque en la base de datos estan de esa misma forma con los espacios. 
-    solo devolver la sentencia sql , no repetir informacion y no inventar informacion ademas crea alias para darle mas entendimiento a la sentencia sql.
-    Terminos de ciertas palabras que recibiras: SKU es la columna ITEMID , la columna CLI_FLAG_CARTERA tiene dos opciones Obejtivo o Abierta, si te preguntaran por 'los SKU mas vendido para el cliente con ' deberas usar CLI_FLAG_CARTERA=OBJETIVO; cuenado tengas que usar en las clausulas select y where el rut del cliente debes agregarlo con doble comillas asi textualmente como te enseño "RUT_Cliente" .
-    Acuerdate de usar bien las clausulas where y group by cuando usas funciones.
-    descripción de la unica tabla y sus columnas de la base de datos que debes usar para construir la sentencia sql : {texto}.
-    Debes identificar cuales columnas serian las mas apropiadas para crear la sentencia sql , despues identificar si es necesario hacer un calculo con alguna de las columnas que seleccionaste y por ultimo agrupar o ordenar segun sea necesario.
-    La columna FECHA_OV_DATE necesita ser transformada con la siguiente funcion DATE(TIMESTAMP_FORMAT(FECHA_OV_DATE, 'DD-MM-YYYY')) para obtener la fecha de esta forma YYYY-MM-DD , usa la funcion para transformar la columna CADA VEZ QUE LA USES y poder trabajar con esa columna.
-    Utiliza los ejemplos solo de guia para tus respuestas y saber como esperamos que construyas la sentencia sql nunca debes usar los valores de los ejemplos en tu respuesta.
-    {ejemplos}
+    
+    
+    
+    
+    
+
+    def queryFactory2(texto_descriptivo, pregunta_usuario , ejemplos):
+        promptTuning = "traduce texto a sql , debes analizar la pregunta del usuario entendiendo que te esta solicitando y cual es el proposito de la pregunta ,Terminos de ciertas palabras que recibiras: SKU es la columna ITEMID , la columna CLI_FLAG_CARTERA tiene dos opciones Obejtivo o Abierta, si te preguntaran por 'los SKU mas vendido para el cliente con ' deberas usar CLI_FLAG_CARTERA=OBJETIVO; cuenado tengas que usar en las clausulas select y where el rut del cliente debes agregarlo con doble comillas asi textualmente .Debes identificar cuales columnas serian las mas apropiadas para crear la sentencia sql , despues identificar si es necesario hacer un calculo con alguna de las columnas que seleccionaste y por ultimo agrupar o ordenar segun sea necesario.La columna FECHA_OV_DATE necesita ser transformada con la siguiente funcion DATE(TIMESTAMP_FORMAT(FECHA_OV_DATE, 'DD-MM-YYYY')) para obtener la fecha de esta forma YYYY-MM-DD , usa la funcion para transformar la columna CADA VEZ QUE LA USES y poder trabajar con esa columna. para construir la sentencia sql debes tomar en consideracion la descripción de la unica tabla y sus campos y los ejemplos que se te entregan para guiarte, solo devolver la sentencia sql , no repetir informacion y no inventar informacion ademas crea alias para darle mas entendimiento a la sentencia sql."
+        prompt_text = f"instrucciones que debes seguir:{promptTuning},\n ejemplos que debes utilizar para guiarte : {ejemplos} ,\n descripción de la unica tabla y sus columnas de la base de datos que debes usar para construir la sentencia sql : {texto_descriptivo} ,\n pregunta del usuario que debes responder :{pregunta_usuario} \n  respuesta: "
         
-    pregunta del usuario que debes responder :{pregunta_usuario}
-    respira profunadamente, toma te un tiempo y enfocate en que la respuesta que necesitamos es solo la sentencia sql que responda la pregunta del usuario, sin detalles adicionales.
-    respuesta: 
-    """
+        # Crear un objeto de la clase Prompt (asegúrate de tener access_token y project_id definidos previamente)
+        prompt = Prompt(access_token, project_id)
+        
+        # Llamar al método generate con la cadena de texto en lugar del objeto Prompt
+        resultado = prompt.generate(prompt_text, model_id, parameters)
+        return resultado
 
-    prompt = PromptTemplate(
-        input_variables=["texto","pregunta_usuario","ejemplos"],
-        template=sql_template,
-    )
+    query = queryFactory2(texto_descriptivo, pregunta_formateada , texto_combinado)
 
-    chain_2 = LLMChain(llm=MPT_7B_INSTRUCT2_llm, prompt=prompt)
-
-
-    query=chain_2.run({'texto':texto_descriptivo ,'pregunta_usuario':pregunta_usuario,'ejemplos':texto_combinado})
+    print(query)
 
     import re
 
@@ -173,7 +147,6 @@ def sentencia_sql(json_data):
 
     sql_formateado = formatear_pregunta(query)
 
-
     def agregar_comillas_sql(sentencia_sql, columnas_a_modificar):
         for columna in columnas_a_modificar:
             # Utilizar expresiones regulares para agregar doble comillas a la columna
@@ -185,8 +158,9 @@ def sentencia_sql(json_data):
     sql_modificado = agregar_comillas_sql(sql_formateado, columnas_a_modificar)
     print(sql_modificado)
 
-    import pandas as pd
-    import os, ibm_db, ibm_db_dbi as dbi, pandas as pd
+
+
+   
 
 
     DB2DWH_dsn = 'DATABASE={};HOSTNAME={};PORT={};PROTOCOL=TCPIP;UID={uid};PWD={pwd};SECURITY=SSL'.format(
@@ -253,8 +227,3 @@ def sentencia_sql(json_data):
             cursor.close()
         if 'conn' in locals() and conn is not None:
             conn.close()
-
-
-
-
-    
